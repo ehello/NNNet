@@ -103,6 +103,7 @@ class GPUGuardian:
         self.running = True
         self.min_samples = window_minutes * 60 // check_interval
         self.first_run = True  # 首次启动标记
+        self.worker_check_interval = 1  # worker 状态检查间隔（秒）
         
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
     
@@ -165,6 +166,40 @@ class GPUGuardian:
         self.workers[gpu_id] = proc
         self.log(f"启动 worker 占用 GPU {gpu_id} (size={size})")
     
+    def should_occupy(self):
+        """判断是否应该占用 GPU"""
+        if self.first_run:
+            self.log("首次启动，立即占用所有 GPU")
+            self.first_run = False
+            return True
+        
+        avg_util = self.get_all_avg_utilization()
+        if avg_util is not None and self.has_enough_history() and avg_util < self.threshold:
+            self.log(f"多卡平均利用率 {avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
+            return True
+        
+        return False
+    
+    def occupy_gpu(self, gpu):
+        """占用单个 GPU"""
+        gpu_id = gpu['index']
+        if gpu_id in self.workers:
+            return
+        
+        if self.kill_zombie and self.try_kill_zombie(gpu):
+            time.sleep(2)
+            gpu = next((g for g in query_gpu_info() if g['index'] == gpu_id), gpu)
+        
+        self.spawn_worker(gpu_id, gpu['memory_free'])
+    
+    def sleep_with_worker_check(self):
+        """分段休眠，期间持续检测 worker 状态"""
+        for _ in range(self.check_interval // self.worker_check_interval):
+            if not self.running:
+                break
+            time.sleep(self.worker_check_interval)
+            self.cleanup_dead_workers()
+    
     def run(self):
         """主循环"""
         self.log(f"GPU Guardian 启动 - 多卡平均利用率阈值: {self.threshold}%, 窗口: {self.window_minutes}分钟")
@@ -180,34 +215,11 @@ class GPUGuardian:
                 
                 self.update_history(gpu_list)
                 
-                avg_util = self.get_all_avg_utilization()
-                
-                # 首次启动或平均利用率低于阈值时触发占用
-                should_occupy = self.first_run
-                if self.first_run:
-                    self.log("首次启动，立即占用所有 GPU")
-                    self.first_run = False
-                elif avg_util is not None and self.has_enough_history() and avg_util < self.threshold:
-                    self.log(f"多卡平均利用率 {avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
-                    should_occupy = True
-                
-                if should_occupy:
+                if self.should_occupy():
                     for gpu in gpu_list:
-                        gpu_id = gpu['index']
-                        if gpu_id in self.workers:
-                            continue
-                        
-                        if self.kill_zombie and self.try_kill_zombie(gpu):
-                            time.sleep(2)
-                            # 重新查询该 GPU 显存
-                            for new_gpu in query_gpu_info():
-                                if new_gpu['index'] == gpu_id:
-                                    gpu = new_gpu
-                                    break
-                        
-                        self.spawn_worker(gpu_id, gpu['memory_free'])
+                        self.occupy_gpu(gpu)
                 
-                time.sleep(self.check_interval)
+                self.sleep_with_worker_check()
                 
             except KeyboardInterrupt:
                 self.log("收到中断信号，退出...")
