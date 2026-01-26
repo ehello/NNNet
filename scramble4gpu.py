@@ -71,6 +71,8 @@ class GPUManager(object):
             gpus_index = qresult[:, 0][idex]
             gpus_memory = qresult[:, 1][idex]
             return gpus_index, gpus_memory
+            # gpus_index：符合条件的 GPU 编号（如 [0, 2]）
+            # gpus_memory：对应 GPU 的空闲显存（单位 MiB）
 
 
 def compute_storage_size(memory):
