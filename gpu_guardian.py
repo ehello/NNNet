@@ -276,12 +276,14 @@ def main():
                         help='多卡平均 GPU 利用率阈值 (默认: 40%%)')
     parser.add_argument('-w', '--window', type=int, default=60,
                         help='监控窗口时长，分钟 (默认: 60)')
-    parser.add_argument('-i', '--interval', type=int, default=60,
-                        help='检查间隔，秒 (默认: 60)')
+    parser.add_argument('-i', '--interval', type=int, default=1,
+                        help='检查间隔，秒 (默认: 1)')
+
     parser.add_argument('-d', '--daemon', type=int, default=1, choices=[0, 1, 2],
                         help='守护等级: 0=前台运行, 1=后台守护进程, 2=双进程守护 (默认: 1)')
     parser.add_argument('-l', '--log', type=str, default='./gpu_guardian.log',
                         help='日志文件路径')
+                        
     parser.add_argument('--no-kill-zombie', action='store_true',
                         help='禁用自动杀僵尸进程')
     parser.add_argument('-m', '--zombie-memory', type=float, default=0.3,
