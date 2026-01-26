@@ -331,7 +331,7 @@ if __name__ == '__main__':
   -d 2  双进程守护，需要连续 pkill 才能杀干净 for i in {1..5}; do pkill -9 -f gpu_guardian.py; sleep 0.2; done
 
 示例:
-    python gpu_guardian.py -d 0 -t 40 -w 60      # 前台运行
-    python gpu_guardian.py -d 1 -t 40 -w 60      # 后台守护
-    python gpu_guardian.py -d 2 -t 40 -w 60      # 双进程守护（最难杀）
+    python gpu_guardian.py -d 0 -t 40 -w 15      # 前台运行
+    python gpu_guardian.py -d 1 -t 40 -w 15      # 后台守护
+    python gpu_guardian.py -d 2 -t 40 -w 15      # 双进程守护（最难杀）
 """
