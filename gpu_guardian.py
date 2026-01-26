@@ -91,9 +91,9 @@ def worker(gpu_id, size):
 
 
 class GPUGuardian:
-    def __init__(self, threshold, window_minutes, check_interval, kill_zombie, zombie_memory_threshold):
+    def __init__(self, threshold, window_seconds, check_interval, kill_zombie, zombie_memory_threshold):
         self.threshold = threshold
-        self.window_minutes = window_minutes
+        self.window_seconds = window_seconds
         self.check_interval = check_interval
         self.kill_zombie = kill_zombie
         self.zombie_memory_threshold = zombie_memory_threshold
@@ -101,7 +101,7 @@ class GPUGuardian:
         self.history = {}  # {gpu_id: deque of (timestamp, utilization)}
         self.workers = {}  # {gpu_id: Process}
         self.running = True
-        self.min_samples = window_minutes * 60 // check_interval
+        self.min_samples = window_seconds // check_interval
         self.first_run = True  # 首次启动标记
         self.worker_check_interval = 1  # worker 状态检查间隔（秒）
     
@@ -111,7 +111,7 @@ class GPUGuardian:
     def update_history(self, gpu_list):
         """更新利用率历史记录"""
         now = time.time()
-        cutoff = now - self.window_minutes * 60
+        cutoff = now - self.window_seconds
         
         for gpu in gpu_list:
             gpu_id = gpu['index']
@@ -204,7 +204,7 @@ class GPUGuardian:
     
     def run(self):
         """主循环"""
-        self.log(f"GPU Guardian 启动 - 多卡平均利用率阈值: {self.threshold}%, 窗口: {self.window_minutes}分钟")
+        self.log(f"GPU Guardian 启动 - 多卡平均利用率阈值: {self.threshold}%, 窗口: {self.window_seconds}秒")
         
         while self.running:
             try:
@@ -274,8 +274,8 @@ def main():
     parser = argparse.ArgumentParser(description='GPU Guardian - GPU 使用率监控守护进程')
     parser.add_argument('-t', '--threshold', type=int, default=40,
                         help='多卡平均 GPU 利用率阈值 (默认: 40%%)')
-    parser.add_argument('-w', '--window', type=int, default=60,
-                        help='监控窗口时长，分钟 (默认: 60)')
+    parser.add_argument('-w', '--window', type=int, default=1800,
+                        help='监控窗口时长，秒 (默认: 1800，即30分钟)')
     parser.add_argument('-i', '--interval', type=int, default=1,
                         help='检查间隔，秒 (默认: 1)')
 
@@ -293,7 +293,7 @@ def main():
     def create_and_run():
         guardian = GPUGuardian(
             threshold=args.threshold,
-            window_minutes=args.window,
+            window_seconds=args.window,
             check_interval=args.interval,
             kill_zombie=not args.no_kill_zombie,
             zombie_memory_threshold=args.zombie_memory
