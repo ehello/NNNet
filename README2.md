@@ -23,8 +23,7 @@
     - 其他异常：`错误: {error}`
 - 触发占用：`GPU {id} 平均利用率 {x}% < 40%
 
-### Worker
-启动占用`
+### Worker启动占用
 - 启动成功：`启动 worker 占用 GPU {id} (size={n})`
 - 被外部杀死：`GPU {id} worker 已被杀死`
 
