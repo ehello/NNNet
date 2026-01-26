@@ -147,12 +147,12 @@ class GPUGuardian:
             del self.workers[gpu_id]
     
     def try_kill_zombie(self, gpu):
-        """尝试杀死 GPU 上的僵尸进程"""
+        """尝试杀死 指定GPU 上的僵尸进程"""
         gpu_id = gpu['index']
         memory_used_ratio = 1 - gpu['memory_free'] / gpu['memory_total']
         
         if gpu['utilization'] < 10 and memory_used_ratio > self.zombie_memory_threshold:
-            self.log(f"GPU {gpu_id} 检测到僵尸进程：利用率 {gpu['utilization']}%，显存占用 {memory_used_ratio*100:.1f}%")
+            self.log(f"GPU {gpu_id} 检测到僵尸进程：指定GPU上的利用率 {gpu['utilization']}%，显存占用 {memory_used_ratio*100:.1f}%")
             killed = kill_pids(get_gpu_pids(gpu_id), self.log)
             if killed:
                 self.log(f"GPU {gpu_id} 已杀死僵尸进程: {killed}")
