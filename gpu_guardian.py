@@ -251,7 +251,10 @@ def dual_process_guard(target):
         if os.fork() == 0:
             target()
             sys.exit(0)
-        os.wait()
+        try:
+            os.wait()
+        except ChildProcessError:
+            pass
         time.sleep(1)
 
 
@@ -273,25 +276,27 @@ def main():
                         help='僵尸进程判定的显存占用阈值 (默认: 0.3)')
     args = parser.parse_args()
     
-    guardian = GPUGuardian(
-        threshold=args.threshold,
-        window_minutes=args.window,
-        check_interval=args.interval,
-        kill_zombie=not args.no_kill_zombie,
-        zombie_memory_threshold=args.zombie_memory
-    )
+    def create_and_run():
+        guardian = GPUGuardian(
+            threshold=args.threshold,
+            window_minutes=args.window,
+            check_interval=args.interval,
+            kill_zombie=not args.no_kill_zombie,
+            zombie_memory_threshold=args.zombie_memory
+        )
+        guardian.run()
     
     if args.daemon == 0:
         # Level 0: 前台运行
-        guardian.run()
+        create_and_run()
     elif args.daemon == 1:
         # Level 1: 后台守护进程
         daemonize(args.log)
-        guardian.run()
+        create_and_run()
     else:
         # Level 2: 双进程守护
         daemonize(args.log)
-        dual_process_guard(guardian.run)
+        dual_process_guard(create_and_run)
 
 if __name__ == '__main__':
     main()
