@@ -83,13 +83,11 @@ def worker(gpu_id, size):
         tensor = torch.zeros([size, size, size], dtype=torch.double, device=f'cuda:{gpu_id}')
         while True:
             torch.mul(tensor[0], tensor[0])
-            time.sleep(0.1)
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         tensor = tf.zeros([size, size, size], dtype=tf.dtypes.float64)
         while True:
             tf.matmul(tensor[0], tensor[0])
-            time.sleep(0.1)
 
 
 class GPUGuardian:
