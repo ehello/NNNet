@@ -27,22 +27,53 @@ except ImportError:
 
 def query_gpu_utilization():
     """查询所有 GPU 的利用率"""
-    cmd = 'nvidia-smi --query-gpu=index,utilization.gpu,memory.free --format=csv,noheader,nounits'
+    cmd = 'nvidia-smi --query-gpu=index,utilization.gpu,memory.free,memory.total --format=csv,noheader,nounits'
     try:
         results = os.popen(cmd).readlines()
         gpu_data = []
         for line in results:
             parts = [x.strip() for x in line.split(',')]
-            if len(parts) >= 3:
+            if len(parts) >= 4:
                 gpu_data.append({
                     'index': int(parts[0]),
                     'utilization': int(parts[1]),
-                    'memory_free': int(parts[2])
+                    'memory_free': int(parts[2]),
+                    'memory_total': int(parts[3])
                 })
         return gpu_data
     except Exception as e:
         print(f"查询 GPU 失败: {e}")
         return []
+
+
+def get_gpu_processes(gpu_id):
+    """获取指定 GPU 上的进程列表"""
+    cmd = f'nvidia-smi --query-compute-apps=pid,gpu_uuid,used_memory --format=csv,noheader,nounits -i {gpu_id}'
+    try:
+        results = os.popen(cmd).readlines()
+        processes = []
+        for line in results:
+            parts = [x.strip() for x in line.split(',')]
+            if len(parts) >= 1 and parts[0].isdigit():
+                processes.append(int(parts[0]))
+        return processes
+    except Exception:
+        return []
+
+
+def kill_zombie_processes(gpu_id, log_func):
+    """杀死指定 GPU 上的僵尸进程（占显存但无利用率）"""
+    pids = get_gpu_processes(gpu_id)
+    killed = []
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+            killed.append(pid)
+        except ProcessLookupError:
+            pass  # 进程已不存在
+        except PermissionError:
+            log_func(f"无权限杀死进程 {pid}")
+    return killed
 
 
 def compute_storage_size(memory_mb):
@@ -67,10 +98,12 @@ def worker(gpu_id, size):
 
 
 class GPUGuardian:
-    def __init__(self, threshold=40, window_minutes=60, check_interval=60):
+    def __init__(self, threshold=40, window_minutes=60, check_interval=60, kill_zombie=False, zombie_memory_threshold=0.3):
         self.threshold = threshold  # 利用率阈值
         self.window_minutes = window_minutes  # 监控窗口（分钟）
         self.check_interval = check_interval  # 检查间隔（秒）
+        self.kill_zombie = kill_zombie  # 是否杀死僵尸进程
+        self.zombie_memory_threshold = zombie_memory_threshold  # 显存占用阈值（判断是否有僵尸）
         
         # 每个 GPU 的历史利用率记录
         self.history = {}  # {gpu_id: deque of (timestamp, utilization)}
@@ -126,9 +159,23 @@ class GPUGuardian:
         self.workers[gpu_id] = proc
         self.log(f"启动 worker 占用 GPU {gpu_id} (size={size})")
     
+    def check_and_kill_zombie(self, gpu):
+        """检查并杀死指定 GPU 上的僵尸进程"""
+        gpu_id = gpu['index']
+        memory_used_ratio = 1 - gpu['memory_free'] / gpu['memory_total']
+        
+        # 利用率低但显存占用高 → 可能有僵尸进程
+        if gpu['utilization'] < 10 and memory_used_ratio > self.zombie_memory_threshold:
+            self.log(f"GPU {gpu_id} 检测到僵尸进程：利用率 {gpu['utilization']}%，显存占用 {memory_used_ratio*100:.1f}%")
+            killed = kill_zombie_processes(gpu_id, self.log)
+            if killed:
+                self.log(f"GPU {gpu_id} 已杀死僵尸进程: {killed}")
+                return True
+        return False
+    
     def run(self):
         """主循环"""
-        self.log(f"GPU Guardian 启动 - 阈值: {self.threshold}%, 窗口: {self.window_minutes}分钟")
+        self.log(f"GPU Guardian 启动 - 多卡的平均GPU利用率阈值阈值: {self.threshold}%, 窗口: {self.window_minutes}分钟")
         
         while self.running:
             try:
@@ -157,7 +204,19 @@ class GPUGuardian:
                         # 确保收集了完整窗口期的数据
                         min_samples = self.window_minutes * 60 // self.check_interval
                         if len(self.history[gpu_id]) >= min_samples:
-                            self.log(f"GPU {gpu_id} 平均利用率 {avg_util:.1f}% < {self.threshold}%，启动占用")
+                            self.log(f"GPU {gpu_id} 平均利用率 {avg_util:.1f}% < {self.threshold}%，准备占用")
+                            
+                            # 先杀僵尸进程释放显存
+                            if self.kill_zombie:
+                                if self.check_and_kill_zombie(gpu):
+                                    time.sleep(2)  # 等待显存释放
+                                    # 重新查询该 GPU 的显存
+                                    new_gpu_data = query_gpu_utilization()
+                                    for g in new_gpu_data:
+                                        if g['index'] == gpu_id:
+                                            gpu = g
+                                            break
+                            
                             self.spawn_worker(gpu_id, gpu['memory_free'])
                 
                 time.sleep(self.check_interval)
@@ -196,15 +255,21 @@ def daemonize():
 def main():
     parser = argparse.ArgumentParser(description='GPU Guardian - GPU 使用率监控守护进程')
     parser.add_argument('-t', '--threshold', type=int, default=40,
-                        help='GPU 利用率阈值 (默认: 40%)')
+                        help='多卡的平均GPU利用率阈值 (默认: 40%%)')
     parser.add_argument('-w', '--window', type=int, default=60,
                         help='监控窗口时长，分钟 (默认: 60)')
     parser.add_argument('-i', '--interval', type=int, default=60,
                         help='检查间隔，秒 (默认: 60)')
+
     parser.add_argument('--foreground', '-f', action='store_true',
                         help='前台模式运行（默认为守护进程模式）')
     parser.add_argument('-l', '--log', type=str, default="./gpu_guardian.log",
                         help='日志文件路径 (守护模式下建议指定)')
+
+    parser.add_argument('--no-kill-zombie', action='store_true',
+                        help='禁用自动杀死僵尸进程（默认会自动杀死占显存但无利用率的进程）')
+    parser.add_argument('-m', '--zombie-memory', type=float, default=0.3,
+                        help='僵尸进程判定的单卡显存占用阈值 (默认: 0.3，即30%%)')
     args = parser.parse_args()
     
     if not args.foreground:
@@ -217,7 +282,9 @@ def main():
     guardian = GPUGuardian(
         threshold=args.threshold,
         window_minutes=args.window,
-        check_interval=args.interval
+        check_interval=args.interval,
+        kill_zombie=not args.no_kill_zombie,
+        zombie_memory_threshold=args.zombie_memory
     )
     guardian.run()
 
@@ -229,6 +296,7 @@ if __name__ == '__main__':
 后台守护进程运行（默认）
 # 脱离终端，关闭终端进程也不死，只能通过 kill 或者 pkill -f gpu_guardian.py 杀死
     python gpu_guardian.py -t 40 -w 60 
+
 前台运行（测试）
-    python gpu_guardian.py -t 40 -w 60  -f
+    python gpu_guardian.py -t 40 -w 60 -f
 """
