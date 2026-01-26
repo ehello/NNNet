@@ -230,7 +230,6 @@ if __name__ == '__main__':
     python gpu_guardian.py -t 40 -w 60 
 前台运行（测试）
     python gpu_guardian.py -t 40 -w 60  -f
-
 kill：
     pkill -f gpu_guardian.py
 """
