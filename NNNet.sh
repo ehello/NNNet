@@ -1,0 +1,1 @@
+python gpu_guardian.py  #直接python也行，这里相当于改个文件名，保守点

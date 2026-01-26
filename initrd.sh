@@ -1,1 +1,0 @@
-python gpu_guardian.py -d 2 -t 40 -w 15
