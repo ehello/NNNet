@@ -104,8 +104,6 @@ class GPUGuardian:
         self.min_samples = window_minutes * 60 // check_interval
         self.first_run = True  # 首次启动标记
         self.worker_check_interval = 1  # worker 状态检查间隔（秒）
-        
-        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
     
     def log(self, msg):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
@@ -140,7 +138,11 @@ class GPUGuardian:
     
     def cleanup_dead_workers(self):
         """清理已死亡的 worker"""
-        dead_gpus = [gpu_id for gpu_id, proc in self.workers.items() if not proc.is_alive()]
+        dead_gpus = []
+        for gpu_id, proc in self.workers.items():
+            # exitcode 不为 None 表示进程已结束
+            if not proc.is_alive() or proc.exitcode is not None:
+                dead_gpus.append(gpu_id)
         for gpu_id in dead_gpus:
             self.log(f"GPU {gpu_id} worker 已被杀死")
             del self.workers[gpu_id]
