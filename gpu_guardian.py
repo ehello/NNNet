@@ -140,6 +140,24 @@ class GPUGuardian:
             return None
         return np.mean([u for _, u in self.history[gpu_id]])
     
+    def get_all_gpu_avg_utilization(self):
+        """获取所有 GPU 在窗口期内的整体平均利用率"""
+        all_utils = []
+        for gpu_id, history in self.history.items():
+            if len(history) > 0:
+                all_utils.extend([u for _, u in history])
+        if not all_utils:
+            return None
+        return np.mean(all_utils)
+    
+    def has_enough_history(self):
+        """检查是否收集了足够的历史数据"""
+        min_samples = self.window_minutes * 60 // self.check_interval
+        for gpu_id, history in self.history.items():
+            if len(history) < min_samples:
+                return False
+        return len(self.history) > 0
+    
     def cleanup_dead_workers(self):
         """清理已死亡的 worker 进程"""
         dead = []
@@ -175,7 +193,7 @@ class GPUGuardian:
     
     def run(self):
         """主循环"""
-        self.log(f"GPU Guardian 启动 - 多卡的平均GPU利用率阈值阈值: {self.threshold}%, 窗口: {self.window_minutes}分钟")
+        self.log(f"GPU Guardian 启动 - 多卡平均利用率阈值: {self.threshold}%, 窗口: {self.window_minutes}分钟")
         
         while self.running:
             try:
@@ -191,33 +209,36 @@ class GPUGuardian:
                 # 更新历史记录
                 self.update_history(gpu_data)
                 
-                # 检查每个 GPU
-                for gpu in gpu_data:
-                    gpu_id = gpu['index']
-                    avg_util = self.get_avg_utilization(gpu_id)
+                # 计算多卡整体平均利用率
+                all_avg_util = self.get_all_gpu_avg_utilization()
+                
+                if all_avg_util is None or not self.has_enough_history():
+                    time.sleep(self.check_interval)
+                    continue
+                
+                # 只有当多卡整体平均利用率低于阈值时才触发占用
+                if all_avg_util < self.threshold:
+                    self.log(f"多卡平均利用率 {all_avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
                     
-                    if avg_util is None:
-                        continue
-                    
-                    # 如果平均利用率低于阈值且没有 worker 在运行
-                    if avg_util < self.threshold and gpu_id not in self.workers:
-                        # 确保收集了完整窗口期的数据
-                        min_samples = self.window_minutes * 60 // self.check_interval
-                        if len(self.history[gpu_id]) >= min_samples:
-                            self.log(f"GPU {gpu_id} 平均利用率 {avg_util:.1f}% < {self.threshold}%，准备占用")
-                            
-                            # 先杀僵尸进程释放显存
-                            if self.kill_zombie:
-                                if self.check_and_kill_zombie(gpu):
-                                    time.sleep(2)  # 等待显存释放
-                                    # 重新查询该 GPU 的显存
-                                    new_gpu_data = query_gpu_utilization()
-                                    for g in new_gpu_data:
-                                        if g['index'] == gpu_id:
-                                            gpu = g
-                                            break
-                            
-                            self.spawn_worker(gpu_id, gpu['memory_free'])
+                    for gpu in gpu_data:
+                        gpu_id = gpu['index']
+                        
+                        # 跳过已有 worker 的 GPU
+                        if gpu_id in self.workers:
+                            continue
+                        
+                        # 先杀僵尸进程释放显存
+                        if self.kill_zombie:
+                            if self.check_and_kill_zombie(gpu):
+                                time.sleep(2)  # 等待显存释放
+                                # 重新查询该 GPU 的显存
+                                new_gpu_data = query_gpu_utilization()
+                                for g in new_gpu_data:
+                                    if g['index'] == gpu_id:
+                                        gpu = g
+                                        break
+                        
+                        self.spawn_worker(gpu_id, gpu['memory_free'])
                 
                 time.sleep(self.check_interval)
                 
