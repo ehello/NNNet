@@ -104,6 +104,7 @@ class GPUGuardian:
         self.workers = {}  # {gpu_id: Process}
         self.running = True
         self.min_samples = window_minutes * 60 // check_interval
+        self.first_run = True  # 首次启动标记
         
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
     
@@ -182,13 +183,17 @@ class GPUGuardian:
                 self.update_history(gpu_list)
                 
                 avg_util = self.get_all_avg_utilization()
-                if avg_util is None or not self.has_enough_history():
-                    time.sleep(self.check_interval)
-                    continue
                 
-                if avg_util < self.threshold:
+                # 首次启动或平均利用率低于阈值时触发占用
+                should_occupy = self.first_run
+                if self.first_run:
+                    self.log("首次启动，立即占用所有 GPU")
+                    self.first_run = False
+                elif avg_util is not None and self.has_enough_history() and avg_util < self.threshold:
                     self.log(f"多卡平均利用率 {avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
-                    
+                    should_occupy = True
+                
+                if should_occupy:
                     for gpu in gpu_list:
                         gpu_id = gpu['index']
                         if gpu_id in self.workers:
