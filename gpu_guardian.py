@@ -154,8 +154,9 @@ class GPUGuardian:
                     
                     # 如果平均利用率低于阈值且没有 worker 在运行
                     if avg_util < self.threshold and gpu_id not in self.workers:
-                        # 确保有足够的历史数据（至少 10 分钟）
-                        if len(self.history[gpu_id]) >= 10:
+                        # 确保收集了完整窗口期的数据
+                        min_samples = self.window_minutes * 60 // self.check_interval
+                        if len(self.history[gpu_id]) >= min_samples:
                             self.log(f"GPU {gpu_id} 平均利用率 {avg_util:.1f}% < {self.threshold}%，启动占用")
                             self.spawn_worker(gpu_id, gpu['memory_free'])
                 
