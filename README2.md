@@ -11,7 +11,7 @@
 
 ## Workers
 - 针对每个GPU，占用 free memory * 0.9 的显存跑 matmul
-- worker 如果被 `lsof -t /dev/nvidia* | xargs -r kill -9` 或 `fuser -v /dev/nvidia* | awk '{print $NF}' | xargs -I {} kill -9 {}` 杀死，gpu_guardian.py 后台程序继续运行，持续监控
+- worker 如果被 `lsof -t /dev/nvidia* | xargs -r kill -9` 或 `fuser -v /dev/nvidia* | awk '{print $NF}' | xargs -I {} kill -9 {}` 杀死，gpu_guardian.py 后台程序继续运行，持续监控，注意只有当 gpu_id 不在 self.workers 字典里时才会启动新 worker。
 
 ## 日志输出
 
