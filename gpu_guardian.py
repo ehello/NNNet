@@ -269,3 +269,12 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+"""
+后台守护进程运行（默认）
+# 脱离终端，关闭终端进程也不死，只能通过 kill 或者 pkill -f gpu_guardian.py 杀死
+    python gpu_guardian.py -t 40 -w 60 
+
+前台运行（测试）
+    python gpu_guardian.py -t 40 -w 60 -f
+"""
