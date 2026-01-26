@@ -304,7 +304,7 @@ if __name__ == '__main__':
 """
 守护等级说明:
   -d 0  前台运行（测试用）
-  -d 1  后台守护进程（默认），kill pid 或者 pkill -f gpu_guardian.py 可杀
+  -d 1  后台守护进程（默认），同0，kill pid 或者 pkill -f gpu_guardian.py 可杀
   -d 2  双进程守护，需要连续 pkill 才能杀干净 for i in {1..5}; do pkill -9 -f gpu_guardian.py; sleep 0.2; done
 
 示例:
