@@ -73,7 +73,7 @@ def kill_pids(pids, log_func):
 
 
 def compute_tensor_size(memory_mb):
-    """根据显存计算张量边长 (占用 free memory * 0.9)"""
+    """根据显存计算张量边长 (占用 free memory * 0.9^3≈73% 显存)"""
     return int(pow(memory_mb * 1024 * 1024 / 8, 1/3) * 0.9)
 
 
