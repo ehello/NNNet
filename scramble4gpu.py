@@ -26,7 +26,7 @@ except ImportError:
 def set_parser():
     parser = argparse.ArgumentParser(description='..')
     parser.add_argument('-p', '--proportion', type=float, default=0.8,
-                        help='The ratio of gpu free memory to total memory')
+                        help='The ratio of gpu free memory to total memory; free memory/total memory > proportion 的卡才会被选中')
     parser.add_argument('-n', '--gpu_nums', type=int, default=1,
                         help='The numbers of GPU to scramble')
     parser.add_argument('-t', '--times', type=int, default=1800,
@@ -76,6 +76,7 @@ class GPUManager(object):
 
 
 def compute_storage_size(memory):
+    """计算可占用的张量大小 = free memory * 0.9 """
     return pow(memory * 1024 * 1024 / 8, 1/3) * 0.9
 
 
