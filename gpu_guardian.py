@@ -223,8 +223,8 @@ class GPUGuardian:
                 proc.terminate()
 
 
-def daemonize():
-    """转为守护进程 (level 1)"""
+def daemonize(log_path=None):
+    """转为守护进程"""
     if os.fork() > 0:
         sys.exit(0)
     os.setsid()
@@ -235,19 +235,23 @@ def daemonize():
     sys.stderr.flush()
     with open('/dev/null', 'r') as devnull:
         os.dup2(devnull.fileno(), sys.stdin.fileno())
+    
+    if log_path:
+        log_file = open(log_path, 'a', buffering=1)
+        os.dup2(log_file.fileno(), sys.stdout.fileno())
+        os.dup2(log_file.fileno(), sys.stderr.fileno())
 
 
-def dual_process_guard(run_func):
+def dual_process_guard(target):
     """双进程守护 - 子进程被杀后自动重启"""
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     
     while True:
-        pid = os.fork()
-        if pid == 0:
-            run_func()
+        if os.fork() == 0:
+            target()
             sys.exit(0)
-        os.waitpid(pid, 0)  # 阻塞等待子进程退出
+        os.wait()
         time.sleep(1)
 
 
@@ -269,36 +273,25 @@ def main():
                         help='僵尸进程判定的显存占用阈值 (默认: 0.3)')
     args = parser.parse_args()
     
-    def run_guardian():
-        guardian = GPUGuardian(
-            threshold=args.threshold,
-            window_minutes=args.window,
-            check_interval=args.interval,
-            kill_zombie=not args.no_kill_zombie,
-            zombie_memory_threshold=args.zombie_memory
-        )
-        guardian.run()
-    
-    def setup_log():
-        if args.log:
-            log_file = open(args.log, 'a', buffering=1)
-            os.dup2(log_file.fileno(), sys.stdout.fileno())
-            os.dup2(log_file.fileno(), sys.stderr.fileno())
+    guardian = GPUGuardian(
+        threshold=args.threshold,
+        window_minutes=args.window,
+        check_interval=args.interval,
+        kill_zombie=not args.no_kill_zombie,
+        zombie_memory_threshold=args.zombie_memory
+    )
     
     if args.daemon == 0:
         # Level 0: 前台运行
-        run_guardian()
+        guardian.run()
     elif args.daemon == 1:
         # Level 1: 后台守护进程
-        daemonize()
-        setup_log()
-        run_guardian()
+        daemonize(args.log)
+        guardian.run()
     else:
         # Level 2: 双进程守护
-        daemonize()
-        setup_log()
-        dual_process_guard(run_guardian)
-
+        daemonize(args.log)
+        dual_process_guard(guardian.run)
 
 if __name__ == '__main__':
     main()
