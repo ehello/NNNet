@@ -269,15 +269,15 @@ def dual_process_guard(target):
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     
     while True:
-        if os.fork() == 0:
+        if os.fork() == 0: #1.os.fork() 创建子进程 2.子进程（fork返回0）执行 target() 
             target()
             sys.exit(0)
         try:
-            os.wait()
+            os.wait() #3.父进程调用 os.wait() 等待子进程结束
         except ChildProcessError:
             pass
-        time.sleep(1)
-
+        time.sleep(1) #4.子进程结束后，sleep 1秒再重新fork
+    # 总结：父进程负责"看守"，子进程负责干活。子进程挂了，父进程立刻拉起一个新的。
 
 def main():
     parser = argparse.ArgumentParser(description='GPU Guardian - GPU 使用率监控守护进程')
@@ -327,8 +327,8 @@ if __name__ == '__main__':
 """
 守护等级说明:
   -d 0  前台运行（测试用）
-  -d 1  后台守护进程（默认），同0，kill pid 或者 pkill -f gpu_guardian.py 可杀
-  -d 2  双进程守护，需要连续 pkill 才能杀干净 for i in {1..5}; do pkill -9 -f gpu_guardian.py; sleep 0.2; done
+  -d 1  后台守护进程（默认），脱离终端/关闭终端进程也不死。kill pid 或者 pkill -f gpu_guardian.py 可杀，同0
+  -d 2  双进程守护，脱离终端/关闭终端进程也不死。需要连续 kill -9 才能杀干净： for i in {1..5}; do pkill -9 -f gpu_guardian.py; sleep 0.2; done
 
 示例:
     python gpu_guardian.py -d 0 -t 40 -w 15      # 前台运行
