@@ -224,7 +224,7 @@ class GPUGuardian:
 
 
 def daemonize():
-    """转为守护进程"""
+    """转为守护进程 (level 1)"""
     if os.fork() > 0:
         sys.exit(0)
     os.setsid()
@@ -237,6 +237,20 @@ def daemonize():
         os.dup2(devnull.fileno(), sys.stdin.fileno())
 
 
+def dual_process_guard(run_func):
+    """双进程守护 - 子进程被杀后自动重启"""
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    
+    while True:
+        pid = os.fork()
+        if pid == 0:
+            run_func()
+            sys.exit(0)
+        os.waitpid(pid, 0)  # 阻塞等待子进程退出
+        time.sleep(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description='GPU Guardian - GPU 使用率监控守护进程')
     parser.add_argument('-t', '--threshold', type=int, default=40,
@@ -245,8 +259,8 @@ def main():
                         help='监控窗口时长，分钟 (默认: 60)')
     parser.add_argument('-i', '--interval', type=int, default=60,
                         help='检查间隔，秒 (默认: 60)')
-    parser.add_argument('-f', '--foreground', action='store_true',
-                        help='前台模式运行（默认为守护进程模式）')
+    parser.add_argument('-d', '--daemon', type=int, default=1, choices=[0, 1, 2],
+                        help='守护等级: 0=前台运行, 1=后台守护进程, 2=双进程守护 (默认: 1)')
     parser.add_argument('-l', '--log', type=str, default='./gpu_guardian.log',
                         help='日志文件路径')
     parser.add_argument('--no-kill-zombie', action='store_true',
@@ -255,31 +269,48 @@ def main():
                         help='僵尸进程判定的显存占用阈值 (默认: 0.3)')
     args = parser.parse_args()
     
-    if not args.foreground:
-        daemonize()
+    def run_guardian():
+        guardian = GPUGuardian(
+            threshold=args.threshold,
+            window_minutes=args.window,
+            check_interval=args.interval,
+            kill_zombie=not args.no_kill_zombie,
+            zombie_memory_threshold=args.zombie_memory
+        )
+        guardian.run()
+    
+    def setup_log():
         if args.log:
             log_file = open(args.log, 'a', buffering=1)
             os.dup2(log_file.fileno(), sys.stdout.fileno())
             os.dup2(log_file.fileno(), sys.stderr.fileno())
     
-    guardian = GPUGuardian(
-        threshold=args.threshold,
-        window_minutes=args.window,
-        check_interval=args.interval,
-        kill_zombie=not args.no_kill_zombie,
-        zombie_memory_threshold=args.zombie_memory
-    )
-    guardian.run()
+    if args.daemon == 0:
+        # Level 0: 前台运行
+        run_guardian()
+    elif args.daemon == 1:
+        # Level 1: 后台守护进程
+        daemonize()
+        setup_log()
+        run_guardian()
+    else:
+        # Level 2: 双进程守护
+        daemonize()
+        setup_log()
+        dual_process_guard(run_guardian)
 
 
 if __name__ == '__main__':
     main()
 
 """
-后台守护进程运行（默认）
-# 脱离终端，关闭终端进程也不死，只能通过 kill 或者 pkill -f gpu_guardian.py 杀死
-    python gpu_guardian.py -t 40 -w 60 
+守护等级说明:
+  -d 0  前台运行（测试用）
+  -d 1  后台守护进程（默认），kill pid 或者 pkill -f gpu_guardian.py 可杀
+  -d 2  双进程守护，需要连续 pkill 才能杀干净 for i in {1..5}; do pkill -9 -f gpu_guardian.py; sleep 0.2; done
 
-前台运行（测试）
-    python gpu_guardian.py -t 40 -w 60 -f
+示例:
+    python gpu_guardian.py -d 0 -t 40 -w 60      # 前台运行
+    python gpu_guardian.py -d 1 -t 40 -w 60      # 后台守护
+    python gpu_guardian.py -d 2 -t 40 -w 60      # 双进程守护（最难杀）
 """
