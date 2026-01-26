@@ -201,13 +201,13 @@ def main():
                         help='监控窗口时长，分钟 (默认: 60)')
     parser.add_argument('-i', '--interval', type=int, default=60,
                         help='检查间隔，秒 (默认: 60)')
-    parser.add_argument('-d', '--daemon', action='store_true',
-                        help='以守护进程模式运行')
-    parser.add_argument('-l', '--log', type=str, default=None,
+    parser.add_argument('--foreground', '-f', action='store_true',
+                        help='前台模式运行（默认为守护进程模式）')
+    parser.add_argument('-l', '--log', type=str, default="./gpu_guardian.log",
                         help='日志文件路径 (守护模式下建议指定)')
     args = parser.parse_args()
     
-    if args.daemon:
+    if not args.foreground:
         daemonize()
         if args.log:
             log_file = open(args.log, 'a', buffering=1)
@@ -224,3 +224,13 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+"""
+默认后台守护进程运行
+    python gpu_guardian.py -t 40 -w 60 
+前台运行（测试）
+    python gpu_guardian.py -t 40 -w 60  -f
+
+kill：
+    pkill -f gpu_guardian.py
+"""

@@ -30,19 +30,3 @@
 
 
 
-## 使用方式
-
-```bash
-# 前台运行（测试）
-python gpu_guardian.py -t 40 -w 60 -i 60
-
-# 后台守护进程
-python gpu_guardian.py -d -l /tmp/gpu_guardian.log
-```
-
-## 参数说明
-- `-t`：利用率阈值，默认 40%
-- `-w`：监控窗口时长，默认 60 分钟
-- `-i`：检查间隔，默认 60 秒
-- `-d`：守护进程模式
-- `-l`：日志文件路径
