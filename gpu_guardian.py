@@ -123,12 +123,20 @@ class GPUGuardian:
             while self.history[gpu_id] and self.history[gpu_id][0][0] < cutoff:
                 self.history[gpu_id].popleft()
     
+    def get_per_gpu_avg_utilization(self):
+        """计算每个 GPU 在窗口时间内的平均利用率"""
+        per_gpu_avg = {}
+        for gpu_id, history in self.history.items():
+            if history:
+                per_gpu_avg[gpu_id] = np.mean([util for _, util in history])
+        return per_gpu_avg
+    
     def get_all_avg_utilization(self):
-        """计算多卡整体平均利用率"""
-        all_utils = []
-        for history in self.history.values():
-            all_utils.extend([util for _, util in history])
-        return np.mean(all_utils) if all_utils else None
+        """计算多卡整体平均利用率（先单卡平均，再多卡平均）"""
+        per_gpu_avg = self.get_per_gpu_avg_utilization()
+        if not per_gpu_avg:
+            return None, {}
+        return np.mean(list(per_gpu_avg.values())), per_gpu_avg
     
     def has_enough_history(self):
         """检查是否收集了足够的历史数据"""
@@ -175,9 +183,10 @@ class GPUGuardian:
             self.first_run = False
             return True
         
-        avg_util = self.get_all_avg_utilization()
+        avg_util, per_gpu_avg = self.get_all_avg_utilization()
         if avg_util is not None and self.has_enough_history() and avg_util < self.threshold:
-            self.log(f"多卡平均利用率 {avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
+            per_gpu_str = ', '.join([f"GPU{k}: {v:.1f}%" for k, v in sorted(per_gpu_avg.items())])
+            self.log(f"窗口 {self.window_seconds}s 内各GPU平均利用率: [{per_gpu_str}], 多卡平均: {avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
             return True
         
         return False
@@ -204,7 +213,7 @@ class GPUGuardian:
     
     def run(self):
         """主循环"""
-        self.log(f"GPU Guardian 启动 - 多卡平均利用率阈值: {self.threshold}%, 窗口: {self.window_seconds}秒")
+        self.log(f"GPU Guardian 启动 - 窗口: {self.window_seconds}s, 多卡平均利用率阈值: {self.threshold}%")
         
         while self.running:
             try:
