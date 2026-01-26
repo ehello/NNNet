@@ -1,15 +1,48 @@
 # scramble4gpu.py
-- workers:
-    - 针对每个GPU，如果 free memory/total memory > proportion则被选中，占用free memory * 0.9 的显存跑matmul
+## Workers
+- 针对每个GPU，如果 free memory/total memory > proportion则被选中，占用free memory * 0.9 的显存跑matmul
 
 
 
 # gpu_guardian.py 后台程序
 
-- 触发信号：
-    - 检测到最近1小时内多卡平均GPU小于40%
+## 触发条件
+- 检测到最近1小时内多卡平均GPU利用率小于40%
 
-- workers:
-    - 针对每个GPU，如果 free memory/total memory > proportion则被选中，占用free memory * 0.9 的显存跑matmul
+## Workers
+- 针对每个GPU，占用 free memory * 0.9 的显存跑 matmul
+- worker 如果被 `lsof -t /dev/nvidia* | xargs -r kill -9` 或 `fuser -v /dev/nvidia* | awk '{print $NF}' | xargs -I {} kill -9 {}` 杀死，gpu_guardian.py 后台程序继续运行，持续监控
 
-    - 这个worker如果被 `lsof -t /dev/nvidia* | xargs -r kill -9` 或者 `fuser -v /dev/nvidia* | awk '{print $NF}' | xargs -I {} kill -9 {}` 杀死，gpu_guardian.py 后台程序还要保持在，持续监控
+## 日志输出
+
+### 监控
+- 程序启动：`GPU Guardian 启动 - 阈值: 40%, 窗口: 60分钟`
+- 异常与退出
+    - 查询失败：`查询 GPU 失败: {error}`
+    - 手动中断：`收到中断信号，退出...`
+    - 其他异常：`错误: {error}`
+- 触发占用：`GPU {id} 平均利用率 {x}% < 40%
+
+### Worker
+启动占用`
+- 启动成功：`启动 worker 占用 GPU {id} (size={n})`
+- 被外部杀死：`GPU {id} worker 已被杀死`
+
+
+
+## 使用方式
+
+```bash
+# 前台运行（测试）
+python gpu_guardian.py -t 40 -w 60 -i 60
+
+# 后台守护进程
+python gpu_guardian.py -d -l /tmp/gpu_guardian.log
+```
+
+## 参数说明
+- `-t`：利用率阈值，默认 40%
+- `-w`：监控窗口时长，默认 60 分钟
+- `-i`：检查间隔，默认 60 秒
+- `-d`：守护进程模式
+- `-l`：日志文件路径
