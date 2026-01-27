@@ -189,6 +189,22 @@ class GPUGuardian:
         self.workers[gpu_id] = proc
         self.log(f"启动 worker 占用 GPU {gpu_id} (size={size})")
     
+    def get_time_range_str(self):
+        """获取当前历史数据的起止时间字符串"""
+        if not self.history:
+            return ""
+        
+        all_timestamps = []
+        for h in self.history.values():
+            all_timestamps.extend([t for t, _ in h])
+        
+        if not all_timestamps:
+            return ""
+            
+        start_time = datetime.fromtimestamp(min(all_timestamps)).strftime('%H:%M:%S')
+        end_time = datetime.fromtimestamp(max(all_timestamps)).strftime('%H:%M:%S')
+        return f"{start_time}-{end_time}"
+
     def periodic_log(self):
         """每隔窗口时长定时打印利用率日志"""
         now = time.time()
@@ -198,9 +214,10 @@ class GPUGuardian:
         
         if now - self.last_periodic_log_time >= self.window_seconds:
             avg_util, per_gpu_avg = self.get_all_avg_utilization()
+            time_range = self.get_time_range_str()
             if avg_util is not None and per_gpu_avg:
                 per_gpu_str = ', '.join([f"GPU{k}: {v:.1f}%" for k, v in sorted(per_gpu_avg.items())])
-                self.log(f"定时打印日志：窗口 {self.window_seconds}s 内各GPU平均利用率: [{per_gpu_str}], 多卡平均: {avg_util:.1f}%")
+                self.log(f"定时打印日志：窗口 {time_range} ({self.window_seconds}s) 内各GPU平均利用率: [{per_gpu_str}], 多卡平均: {avg_util:.1f}%")
             self.last_periodic_log_time = now
     
     def should_occupy(self):
@@ -212,8 +229,9 @@ class GPUGuardian:
         
         avg_util, per_gpu_avg = self.get_all_avg_utilization()
         if avg_util is not None and self.has_enough_history() and avg_util < self.threshold:
+            time_range = self.get_time_range_str()
             per_gpu_str = ', '.join([f"GPU{k}: {v:.1f}%" for k, v in sorted(per_gpu_avg.items())])
-            self.log(f"窗口 {self.window_seconds}s 内各GPU平均利用率: [{per_gpu_str}], 多卡平均: {avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
+            self.log(f"窗口 {time_range} ({self.window_seconds}s) 内各GPU平均利用率: [{per_gpu_str}], 多卡平均: {avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
             return True
         
         return False
