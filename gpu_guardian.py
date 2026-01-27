@@ -101,7 +101,6 @@ class GPUGuardian:
         self.history = {}  # {gpu_id: deque of (timestamp, utilization)}
         self.workers = {}  # {gpu_id: Process}
         self.running = True
-        self.min_samples = max(1, window_seconds // check_interval - 2) # -2是留出余量，避免因循环执行popleft开销导致样本数不足
         self.first_run = True  # 首次启动标记
         self.worker_check_interval = 1  # worker 状态检查间隔（秒）
         self.last_periodic_log_time = None  # 上次定时打印日志的时间
@@ -140,10 +139,23 @@ class GPUGuardian:
         return np.mean(list(per_gpu_avg.values())), per_gpu_avg
     
     def has_enough_history(self):
-        """检查是否收集了足够的历史数据"""
+        """检查是否收集了足够的历史数据（基于时间跨度）"""
         if not self.history:
             return False
-        return all(len(h) >= self.min_samples for h in self.history.values())
+        
+        now = time.time()
+        # 只要历史数据覆盖了窗口的 90% 以上，就认为数据充足
+        # 留 10% 的余量是为了防止数据刚过窗口期被popleft清理导致判定失败
+        required_duration = self.window_seconds * 0.9
+        
+        for h in self.history.values():
+            if not h:
+                return False
+            # 计算当前队列中覆盖的时间跨度
+            duration = now - h[0][0]
+            if duration < required_duration:
+                return False
+        return True
     
     def cleanup_dead_workers(self):
         """清理已死亡的 worker"""
