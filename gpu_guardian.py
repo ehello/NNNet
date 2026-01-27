@@ -101,7 +101,7 @@ class GPUGuardian:
         self.history = {}  # {gpu_id: deque of (timestamp, utilization)}
         self.workers = {}  # {gpu_id: Process}
         self.running = True
-        self.min_samples = window_seconds // check_interval
+        self.min_samples = max(1, window_seconds // check_interval - 2) # -2是留出余量，避免因循环执行popleft开销导致样本数不足
         self.first_run = True  # 首次启动标记
         self.worker_check_interval = 1  # worker 状态检查间隔（秒）
         self.last_periodic_log_time = None  # 上次定时打印日志的时间
