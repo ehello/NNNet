@@ -339,6 +339,6 @@ if __name__ == '__main__':
   -d 1  后台守护进程（默认），脱离终端/关闭终端进程也不死。kill pid 或者 pkill -f gpu_guardian.py 可杀，同 -d 0
 
 示例:
-    python gpu_guardian.py -d 0 -t 40 -w 15      # 前台运行
-    python gpu_guardian.py -d 1 -t 40 -w 15      # 后台守护
+    python gpu_guardian.py -d 0 -t 40 -w 10      # 前台运行
+    python gpu_guardian.py -d 1 -t 40 -w 10      # 后台守护
 """
