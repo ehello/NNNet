@@ -104,6 +104,7 @@ class GPUGuardian:
         self.min_samples = window_seconds // check_interval
         self.first_run = True  # 首次启动标记
         self.worker_check_interval = 1  # worker 状态检查间隔（秒）
+        self.last_periodic_log_time = None  # 上次定时打印日志的时间
     
     def log(self, msg):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
@@ -176,6 +177,20 @@ class GPUGuardian:
         self.workers[gpu_id] = proc
         self.log(f"启动 worker 占用 GPU {gpu_id} (size={size})")
     
+    def periodic_log(self):
+        """每隔窗口时长定时打印利用率日志"""
+        now = time.time()
+        if self.last_periodic_log_time is None:
+            self.last_periodic_log_time = now
+            return
+        
+        if now - self.last_periodic_log_time >= self.window_seconds:
+            avg_util, per_gpu_avg = self.get_all_avg_utilization()
+            if avg_util is not None and per_gpu_avg:
+                per_gpu_str = ', '.join([f"GPU{k}: {v:.1f}%" for k, v in sorted(per_gpu_avg.items())])
+                self.log(f"定时打印日志：窗口 {self.window_seconds}s 内各GPU平均利用率: [{per_gpu_str}], 多卡平均: {avg_util:.1f}%")
+            self.last_periodic_log_time = now
+    
     def should_occupy(self):
         """判断是否应该占用 GPU"""
         if self.first_run:
@@ -225,6 +240,8 @@ class GPUGuardian:
                     continue
                 
                 self.update_history(gpu_list)
+                
+                self.periodic_log()
                 
                 if self.should_occupy():
                     for gpu in gpu_list:
