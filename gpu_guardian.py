@@ -312,10 +312,10 @@ def daemonize(log_path=None):
 
 def main():
     parser = argparse.ArgumentParser(description='GPU Guardian - GPU 使用率监控守护进程')
-    parser.add_argument('-t', '--threshold', type=int, default=40,
-                        help='多卡平均 GPU 利用率阈值 (默认: 40%%)')
-    parser.add_argument('-w', '--window', type=int, default=1800,
-                        help='监控窗口时长，秒 (默认: 1800，即30分钟)')
+    parser.add_argument('-t', '--threshold', type=int, default=30,
+                        help='多卡平均 GPU 利用率阈值 (默认: 30%%)')
+    parser.add_argument('-w', '--window', type=int, default=3600,
+                        help='监控窗口时长，秒 (默认: 3600，即60分钟)')
     parser.add_argument('-i', '--interval', type=int, default=1,
                         help='检查间隔，秒 (默认: 1)')
 
