@@ -72,9 +72,9 @@ def kill_pids(pids, log_func):
     return killed
 
 
-def compute_tensor_size(memory_mb):
-    """根据显存计算张量边长 (占用 free memory * 0.9^3≈73% 显存)"""
-    return int(pow(memory_mb * 1024 * 1024 / 8, 1/3) * 0.9)
+def compute_tensor_size(memory_mb, ratio=0.9):
+    """根据显存计算张量边长 (占用 free memory * ratio^3 显存)"""
+    return int(pow(memory_mb * 1024 * 1024 / 8, 1/3) * ratio)
 
 
 def worker(gpu_id, size):
@@ -91,12 +91,13 @@ def worker(gpu_id, size):
 
 
 class GPUGuardian:
-    def __init__(self, threshold, window_seconds, check_interval, kill_zombie, zombie_memory_threshold):
+    def __init__(self, threshold, window_seconds, check_interval, kill_zombie, zombie_memory_threshold, memory_ratio):
         self.threshold = threshold
         self.window_seconds = window_seconds
         self.check_interval = check_interval
         self.kill_zombie = kill_zombie
         self.zombie_memory_threshold = zombie_memory_threshold
+        self.memory_ratio = memory_ratio
         
         self.history = {}  # {gpu_id: deque of (timestamp, utilization)}
         self.workers = {}  # {gpu_id: Process}
@@ -183,7 +184,7 @@ class GPUGuardian:
     
     def spawn_worker(self, gpu_id, memory_free):
         """启动 worker 占用 GPU"""
-        size = compute_tensor_size(memory_free)
+        size = compute_tensor_size(memory_free, self.memory_ratio)
         proc = multiprocessing.Process(target=worker, args=(gpu_id, size), daemon=True)
         proc.start()
         self.workers[gpu_id] = proc
@@ -231,7 +232,7 @@ class GPUGuardian:
         if avg_util is not None and self.has_enough_history() and avg_util < self.threshold:
             time_range = self.get_time_range_str()
             per_gpu_str = ', '.join([f"GPU{k}: {v:.1f}%" for k, v in sorted(per_gpu_avg.items())])
-            self.log(f"窗口 {time_range} ({self.window_seconds}s) 内各GPU平均利用率: [{per_gpu_str}], 多卡平均: {avg_util:.1f}% < {self.threshold}%，开始占用空闲 GPU")
+            self.log(f"窗口 {time_range} ({self.window_seconds}s) 内各GPU平均利用率: [{per_gpu_str}], 多卡平均: {avg_util:.1f}% < {self.threshold}%, 空闲显存占用比例系数: {self.memory_ratio}，开始占用空闲 GPU")
             return True
         
         return False
@@ -258,7 +259,7 @@ class GPUGuardian:
     
     def run(self):
         """主循环"""
-        self.log(f"GPU Guardian 启动 - 窗口: {self.window_seconds}s, 多卡平均利用率阈值: {self.threshold}%")
+        self.log(f"GPU Guardian 启动 - 窗口: {self.window_seconds}s, 多卡平均利用率阈值: {self.threshold}%, 空闲显存占用比例系数: {self.memory_ratio}")
         
         while self.running:
             try:
@@ -323,11 +324,14 @@ def main():
                         help='守护模式: 0=前台运行, 1=后台守护进程 (默认: 1)')
     parser.add_argument('-l', '--log', type=str, default='./gpu_guardian.log',
                         help='日志文件路径')
-                        
+
+    parser.add_argument('-r', '--ratio', type=float, default=0.9,
+                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.9，即约73%%)，实测0.1就可以GPU利用率40%')               
     parser.add_argument('--no-kill-zombie', action='store_true',
                         help='禁用自动杀僵尸进程')
     parser.add_argument('-m', '--zombie-memory', type=float, default=0.3,
                         help='僵尸进程判定的显存占用阈值 (默认: 0.3)')
+
     args = parser.parse_args()
     
     def create_and_run():
@@ -336,7 +340,8 @@ def main():
             window_seconds=args.window,
             check_interval=args.interval,
             kill_zombie=not args.no_kill_zombie,
-            zombie_memory_threshold=args.zombie_memory
+            zombie_memory_threshold=args.zombie_memory,
+            memory_ratio=args.ratio
         )
         guardian.run()
     

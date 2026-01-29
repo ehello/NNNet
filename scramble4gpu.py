@@ -33,6 +33,8 @@ def set_parser():
                         help='Sleep time if scramble gpu')
     parser.add_argument('-e', '--email_conf', type=str, default='./email_conf.json',
                         help='The path to email config')
+    parser.add_argument('-r', '--ratio', type=float, default=0.9,
+                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.9，即约73%%)，实测0.1就可以GPU利用率40%')
     args = parser.parse_args()
 
     return args
@@ -75,9 +77,9 @@ class GPUManager(object):
             # gpus_memory：对应 GPU 的空闲显存（单位 MiB）
 
 
-def compute_storage_size(memory):
-    """计算可占用的张量大小 = free memory * 0.9 """
-    return pow(memory * 1024 * 1024 / 8, 1/3) * 0.9
+def compute_storage_size(memory, ratio=0.9):
+    """根据显存计算张量边长 (占用 free memory * ratio^3 显存)"""
+    return pow(memory * 1024 * 1024 / 8, 1/3) * ratio
 
 
 def worker(gpus_id, size):
@@ -138,7 +140,7 @@ def main(args, ids):
                 sca_nums = args.gpu_nums - len(processes)
                 if sca_nums > 0:
 
-                    sizes = [int(compute_storage_size(i)) for i in gpus_memory]
+                    sizes = [int(compute_storage_size(i, args.ratio)) for i in gpus_memory]
                     for gpus_id, size in zip(gpus_free[:sca_nums], sizes[:sca_nums]):
                         ids.append(gpus_id)
                         print("Scramble GPU {}".format(gpus_id))
