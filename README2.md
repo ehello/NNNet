@@ -1,6 +1,6 @@
 # scramble4gpu.py
 ## Workers
-- 针对每个GPU，如果 free memory/total memory > proportion则被选中，占用 free memory * ratio^3 的显存跑matmul（ratio 默认 0.9，约73%）
+- 针对每个GPU，如果 free memory/total memory > proportion则被选中，占用 free memory * ratio^3 的显存跑matmul（ratio 默认 0.6，约22%）
 
 
 
@@ -13,7 +13,7 @@
 ## Workers
 - 针对每个GPU，
     - 先进行僵尸进程清理(单卡GPU 利用率 < 10% 且 单卡显存占用 > 30% 的进程)。
-    - 占用 free memory * ratio^3 的显存跑 matmul（ratio 默认 0.9，约73%）
+    - 占用 free memory * ratio^3 的显存跑 matmul（ratio 默认 0.6，约22%）
 - worker 如果被 `lsof -t /dev/nvidia* | xargs -r kill -9` 或 `fuser -v /dev/nvidia* | awk '{print $NF}' | xargs -I {} kill -9 {}` 杀死，gpu_guardian.py 后台程序还在继续运行，持续监控，注意只有当 gpu_id 不在 self.workers 字典里时才会启动新 worker。
 
 
@@ -52,6 +52,6 @@
 | `-i, --interval` | 检查间隔（秒） | 1 |
 | `-d, --daemon` | 守护模式: 0=前台, 1=后台 | 1 |
 | `-l, --log` | 日志文件路径 | ./gpu_guardian.log |
-| `-r, --ratio` | 空闲显存占用比例系数 | 0.9 |
+| `-r, --ratio` | 空闲显存占用比例系数 | 0.6 |
 | `-m, --zombie-memory` | 僵尸进程显存占用阈值 | 0.3 |
 | `--no-kill-zombie` | 禁用自动杀僵尸进程 | - |

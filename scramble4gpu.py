@@ -33,8 +33,8 @@ def set_parser():
                         help='Sleep time if scramble gpu')
     parser.add_argument('-e', '--email_conf', type=str, default='./email_conf.json',
                         help='The path to email config')
-    parser.add_argument('-r', '--ratio', type=float, default=0.9,
-                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.9，即约73%%)，实测0.1就可以GPU利用率40%')
+    parser.add_argument('-r', '--ratio', type=float, default=0.6,
+                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.6，即约22%%)')
     args = parser.parse_args()
 
     return args
@@ -77,7 +77,7 @@ class GPUManager(object):
             # gpus_memory：对应 GPU 的空闲显存（单位 MiB）
 
 
-def compute_storage_size(memory, ratio=0.9):
+def compute_storage_size(memory, ratio=0.6):
     """根据显存计算张量边长 (占用 free memory * ratio^3 显存)"""
     return pow(memory * 1024 * 1024 / 8, 1/3) * ratio
 

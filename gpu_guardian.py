@@ -72,7 +72,7 @@ def kill_pids(pids, log_func):
     return killed
 
 
-def compute_tensor_size(memory_mb, ratio=0.9):
+def compute_tensor_size(memory_mb, ratio=0.6):
     """根据显存计算张量边长 (占用 free memory * ratio^3 显存)"""
     return int(pow(memory_mb * 1024 * 1024 / 8, 1/3) * ratio)
 
@@ -325,8 +325,8 @@ def main():
     parser.add_argument('-l', '--log', type=str, default='./gpu_guardian.log',
                         help='日志文件路径')
 
-    parser.add_argument('-r', '--ratio', type=float, default=0.9,
-                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.9，即约73%%)，实测0.1就可以GPU利用率40%')               
+    parser.add_argument('-r', '--ratio', type=float, default=0.6,
+                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.6，即约22%%)')               
     parser.add_argument('--no-kill-zombie', action='store_true',
                         help='禁用自动杀僵尸进程')
     parser.add_argument('-m', '--zombie-memory', type=float, default=0.3,
