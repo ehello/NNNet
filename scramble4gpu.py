@@ -40,7 +40,7 @@ def set_parser():
 
 def parse(qargs, results):
     result_np = []
-    for line in results[1:]:
+    for line in results:  # 修复：不再跳过第一行，因为使用 noheader 格式没有表头
         result_np.append([''.join(filter(str.isdigit, word)) for word in line.split(',')])
     result_np = np.array(result_np)
 
@@ -52,7 +52,7 @@ def query_gpu():
     cmd = 'nvidia-smi --query-gpu={} --format=csv,noheader'.format(','.join(qargs))
     results = os.popen(cmd).readlines()
 
-    return parse(qargs, results), results[0].strip()
+    return parse(qargs, results), results[0].strip() if results else ''
 
 
 class GPUManager(object):
