@@ -173,3 +173,7 @@ if __name__ == '__main__':
     ids = []
     args = set_parser()
     main(args, ids)
+
+"""
+python scramble4gpu.py -n "$(nvidia-smi -L |wc -l)" -t 180000000
+"""
