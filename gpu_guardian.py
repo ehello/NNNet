@@ -325,8 +325,8 @@ def main():
     parser.add_argument('-l', '--log', type=str, default='./gpu_guardian.log',
                         help='日志文件路径')
 
-    parser.add_argument('-r', '--ratio', type=float, default=0.6,
-                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.6，即约22%%)')               
+    parser.add_argument('-r', '--ratio', type=float, default=0.9,
+                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.9，即约73%%)')               
     parser.add_argument('--no-kill-zombie', action='store_true',
                         help='禁用自动杀僵尸进程')
     parser.add_argument('-m', '--zombie-memory', type=float, default=0.3,
