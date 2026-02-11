@@ -1,6 +1,6 @@
 # scramble4gpu.py
 ## Workers
-- 针对每个GPU，如果 free memory/total memory > proportion则被选中，占用 free memory * ratio^3 的显存跑matmul（ratio 默认 0.9，约73%）
+- 针对每个GPU，如果 free memory/total memory > proportion则被选中，占用 free memory * ratio^3 的显存跑matmul（ratio 默认 0.9，约73%，0.6也行，约22%，GPU利用率也还行）
 
 
 
