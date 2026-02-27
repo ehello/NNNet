@@ -82,16 +82,21 @@ def compute_storage_size(memory, ratio=0.6):
     return pow(memory * 1024 * 1024 / 8, 1/3) * ratio
 
 
-def worker(gpus_id, size):
+def worker(gpus_id, size, ready_event=None):
     try:
         a = torch.zeros([size, size, size], dtype=torch.double, device=gpus_id)
+        if ready_event:
+            ready_event.set()
         while True:
             torch.mul(a[0], a[0])
     except Exception:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpus_id)
         a = tf.zeros([size, size, size], dtype=tf.dtypes.float64)
+        if ready_event:
+            ready_event.set()
         while True:
             tf.matmul(a[0], a[0])
+
 
 
 class EmailSender(object):
@@ -144,10 +149,13 @@ def main(args, ids):
                     for gpus_id, size in zip(gpus_free[:sca_nums], sizes[:sca_nums]):
                         ids.append(gpus_id)
                         print("Scramble GPU {}".format(gpus_id))
-                        p = multiprocessing.Process(target=worker, args=(gpus_id, size))
+                        ready_event = multiprocessing.Event()
+                        p = multiprocessing.Process(target=worker, args=(gpus_id, size, ready_event))
                         p.start()
                         processes.append(p)
-                        time.sleep(5)
+                        # 等子进程完成显存分配，最多等5秒兜底
+                        if not ready_event.wait(timeout=5):
+                            print(f"Warning: GPU {gpus_id} allocation timed out")
                 
                 hostname = socket.gethostname()
                 gpu_ids = ', '.join(gpus_free[:sca_nums].astype('str'))
