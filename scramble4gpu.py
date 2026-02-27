@@ -189,4 +189,5 @@ if __name__ == '__main__':
 
 """
 python scramble4gpu.py -n "$(nvidia-smi -L |wc -l)" -t 180000000
+pkill -f scramble4gpu.py
 """
