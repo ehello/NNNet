@@ -35,7 +35,7 @@ python scramble4gpu.py
 
 ### 可选参数
 
-- -p --proportion 显卡空闲内存 / 全部内存 的阈值，取值在0-1之间。当p取1的时候，表示仅仅列出完全没有被使用的显卡。默认为0.9。
+- -p --proportion 显卡空闲内存 / 全部内存 的阈值，取值在0-1之间。当p取1的时候，表示仅仅列出完全没有被使用的显卡。默认为0.8。
 - -n --gpu_nums 需要抢占的GPU数量，建议不要抢太多，容易挨揍。默认是1。
 - -t --times 抢占显卡之后，自动释放显卡的时间。默认是30分钟。
 - -e --email_conf email的配置参数，默认在./email_conf.json
@@ -46,6 +46,6 @@ python scramble4gpu.py
 # 查看参数详情
 python scramble4gpu.py -h
 
-# 查找Free显存大于0.9的显卡，抢占4个，1800秒后自动释放,email配置路径为./email_conf.json
-python scramble4gpu.py -p 0.9 -n 4 -t 1800 -e ./email_conf.json
+# 查找Free显存大于0.8的显卡，抢占4个，1800秒=30分钟后自动释放,email配置路径为./email_conf.json
+python scramble4gpu.py -p 0.8 -n 4 -t 1800 -e ./email_conf.json
 ```
