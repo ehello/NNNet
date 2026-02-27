@@ -146,6 +146,7 @@ def main(args, ids):
                 if sca_nums > 0:
 
                     sizes = [int(compute_storage_size(i, args.ratio)) for i in gpus_memory]
+                    events = []
                     for gpus_id, size in zip(gpus_free[:sca_nums], sizes[:sca_nums]):
                         ids.append(gpus_id)
                         print("Scramble GPU {}".format(gpus_id))
@@ -153,8 +154,10 @@ def main(args, ids):
                         p = multiprocessing.Process(target=worker, args=(gpus_id, size, ready_event))
                         p.start()
                         processes.append(p)
-                        # 等子进程完成显存分配，最多等5秒兜底
-                        if not ready_event.wait(timeout=5):
+                        events.append((gpus_id, ready_event))
+                    # 所有 worker 并行启动后，统一等待分配完成
+                    for gpus_id, evt in events:
+                        if not evt.wait(timeout=5):
                             print(f"Warning: GPU {gpus_id} allocation timed out")
                 
                 hostname = socket.gethostname()
