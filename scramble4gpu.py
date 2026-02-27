@@ -33,8 +33,8 @@ def set_parser():
                         help='Sleep time if scramble gpu')
     parser.add_argument('-e', '--email_conf', type=str, default='./email_conf.json',
                         help='The path to email config')
-    parser.add_argument('-r', '--ratio', type=float, default=0.6,
-                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.6，即约22%%)')
+    parser.add_argument('-r', '--ratio', type=float, default=0.9,
+                        help='空闲显存占用比例系数，实际占用约 ratio^3 的空闲显存 (默认: 0.9，即约73%%)')             
     args = parser.parse_args()
 
     return args
